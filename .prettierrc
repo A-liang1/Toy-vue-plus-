@@ -1,0 +1,21 @@
+{
+  "semi": false,
+  "singleQuote": true,
+  "printWidth": 100,
+  "quoteProps": "as-needed",
+  "tabWidth": 2,
+  "tabs": false,
+  "bracketSpacing": true,
+  "jsxBracketSameLine": true,
+  "htmlWhitespaceSensitivity": "ignore",
+  "trailingComma": "none",
+  "useTabs": false,
+  "jsxSingleQuote": false,
+  "arrowParens": "always",
+  "rangeStart": 0,
+  "proseWrap": "always",
+  "endOfLine": "auto",
+  "importOrderSeparation": true,
+  "importOrderSortSpecifiers": true,
+  "importOrderParserPlugins": ["typescript", "classProperties", "decorators-legacy"]
+}
