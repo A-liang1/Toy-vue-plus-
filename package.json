@@ -1,0 +1,21 @@
+{
+  "name": "toy-vue",
+  "private": true,
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.js reactivity -f esm"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "eslint": "^9.21.0",
+    "minimist": "^1.2.8",
+    "prettier": "^3.5.2",
+    "typescript": "^5.7.3"
+  }
+}
