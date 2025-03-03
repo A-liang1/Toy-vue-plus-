@@ -4,6 +4,11 @@ export function effect(fn, options?) {
     _effect.run()
   })
   _effect.run()
+  if (options) Object.assign(_effect, options) // 可以自定义调度器
+
+  const runner = _effect.run.bind(_effect)
+  runner.effect = _effect
+  return runner
 }
 
 function cleanDepEffect(dep, effect) {
@@ -11,7 +16,7 @@ function cleanDepEffect(dep, effect) {
   if (dep.size === 0) dep.cleanup()
 }
 
-// [a,b,c] -[a] 清理b，c这样末尾的依赖项
+// [a,b,c] -> [a] 清理b，c这样末尾的依赖项
 function postCleanEffect(effect) {
   if (effect.deps.length > effect._depsLength) {
     for (let i = effect._depsLength; i < effect.deps.length; i++)
@@ -27,8 +32,9 @@ function preCleanEffect(effect) {
 }
 class ReactiveEffect {
   _trackId = 0
-  deps = []
+  _running = 0
   _depsLength = 0
+  deps = []
 
   active = true
   constructor(
@@ -43,8 +49,10 @@ class ReactiveEffect {
       activeEffect = this
       // 每次run的时候，清空deps
       preCleanEffect(this)
+      this._running++
       return this.fn()
     } finally {
+      this._running--
       postCleanEffect(this)
       activeEffect = lastEffect
     }
@@ -70,7 +78,9 @@ export function trackEffect(effect, dep) {
 
 export function triggerEffects(dep) {
   for (const effect of dep.keys()) {
-    if (effect.scheduler) effect.scheduler()
-    else effect.run()
+    if (!effect._running) {
+      if (effect.scheduler) effect.scheduler()
+      else effect.run()
+    }
   }
 }
