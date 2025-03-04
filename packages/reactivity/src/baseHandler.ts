@@ -1,10 +1,7 @@
 import { isObject } from '@toy-vue/shared'
 import { track, trigger } from './reactiveEffect'
 import { reactive } from './reactive'
-
-export enum ReactiveFlags {
-  IS_REACTIVE = '__v_isReactive'
-}
+import { ReactiveFlags } from './constant'
 
 export const mutableHandlers: ProxyHandler<any> = {
   get(target, key, receiver) {

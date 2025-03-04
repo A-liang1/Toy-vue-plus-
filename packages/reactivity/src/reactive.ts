@@ -1,5 +1,6 @@
 import { isObject } from '@toy-vue/shared'
-import { ReactiveFlags, mutableHandlers } from './baseHandler'
+import { mutableHandlers } from './baseHandler'
+import { ReactiveFlags } from './constant'
 
 const reactiveMap = new WeakMap()
 

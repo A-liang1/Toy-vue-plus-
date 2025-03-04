@@ -32,13 +32,13 @@ class RefImpl {
   }
 }
 
-function trackRefValue(ref) {
+export function trackRefValue(ref) {
   if (activeEffect) {
     trackEffect(activeEffect, (ref.dep = createDep(() => (ref.dep = undefined), 'undefined')))
   }
 }
 
-function triggerRefValue(ref) {
+export function triggerRefValue(ref) {
   let dep = ref.dep
   if (dep) triggerEffects(dep)
 }

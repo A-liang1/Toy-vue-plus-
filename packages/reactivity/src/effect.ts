@@ -1,3 +1,5 @@
+import { DirtyLevels } from './constant'
+
 export function effect(fn, options?) {
   const _effect = new ReactiveEffect(fn, () => {
     // scheduler 调度函数
@@ -30,26 +32,39 @@ function preCleanEffect(effect) {
   effect._depsLength = 0
   effect._trackId++
 }
-class ReactiveEffect {
+export class ReactiveEffect {
   _trackId = 0
   _running = 0
   _depsLength = 0
+  _dirtyLevel = DirtyLevels.Dirty
   deps = []
+  public active = true
 
-  active = true
   constructor(
     public fn,
     public scheduler
   ) {}
-  run() {
-    if (!this.active) return this.fn()
 
+  public get dirty() {
+    return this._dirtyLevel === DirtyLevels.Dirty
+  }
+
+  public set dirty(v) {
+    this._dirtyLevel = v ? DirtyLevels.Dirty : DirtyLevels.NoDirty
+  }
+
+  run() {
+    this._dirtyLevel = DirtyLevels.NoDirty
+
+    if (!this.active) return this.fn()
     let lastEffect = activeEffect
     try {
       activeEffect = this
       // 每次run的时候，清空deps
       preCleanEffect(this)
+      // 防止递归调用
       this._running++
+
       return this.fn()
     } finally {
       this._running--
@@ -78,6 +93,10 @@ export function trackEffect(effect, dep) {
 
 export function triggerEffects(dep) {
   for (const effect of dep.keys()) {
+    if (effect._dirtyLevel < DirtyLevels.Dirty) {
+      effect._dirtyLevel = DirtyLevels.Dirty
+    }
+
     if (!effect._running) {
       if (effect.scheduler) effect.scheduler()
       else effect.run()
