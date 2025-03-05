@@ -8,16 +8,23 @@ export function ref(value) {
   return createRef(value)
 }
 
-function createRef(value) {
-  return new RefImpl(value)
+export function shallowRef(value) {
+  return createRef(value, true)
+}
+
+function createRef(value, shallow = false) {
+  return new RefImpl(value, shallow)
 }
 
 class RefImpl {
   public __v_isRef = true
   public _value
   public dep
-  constructor(public rawValue) {
-    this._value = toReactive(rawValue)
+  constructor(
+    public rawValue,
+    public readonly shallow = false
+  ) {
+    this._value = shallow ? rawValue : toReactive(rawValue)
   }
   get value() {
     trackRefValue(this)
@@ -26,7 +33,7 @@ class RefImpl {
   set value(newValue) {
     if (newValue !== this.rawValue) {
       this.rawValue = newValue
-      this._value = newValue
+      this._value = this.shallow ? newValue : toReactive(newValue)
       triggerRefValue(this)
     }
   }
@@ -39,7 +46,7 @@ export function trackRefValue(ref) {
 }
 
 export function triggerRefValue(ref) {
-  let dep = ref.dep
+  const dep = ref.dep
   if (dep) triggerEffects(dep)
 }
 
