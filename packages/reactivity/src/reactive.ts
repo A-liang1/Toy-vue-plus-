@@ -26,11 +26,11 @@ export function shallowReadonly(target) {
 }
 
 export function isReactive(value) {
-  return !!value[ReactiveFlags.IS_REACTIVE]
+  return !!(value && value[ReactiveFlags.IS_REACTIVE])
 }
 
 export function isReadonly(value) {
-  return !!value[ReactiveFlags.IS_READONLY]
+  return !!(value && value[ReactiveFlags.IS_READONLY])
 }
 
 export function isProxy(value) {
