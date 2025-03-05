@@ -1,0 +1,19 @@
+{
+  "name": "@toy-vue/runtime-dom",
+  "version": "1.0.0",
+  "module": "dist/runtime-dom.esm-bundler.js",
+  "unpkg": "dist/runtime-dom.global.js",
+  "buildOptions": {
+    "name": "RuntimeCore",
+    "formats": [
+      "esm-bundler",
+      "esm-browser",
+      "cjs",
+      "global"
+    ]
+  },
+  "dependencies": {
+    "@toy-vue/shared": "workspace:*",
+    "@toy-vue/reactivity": "workspace:*"
+  }
+}
