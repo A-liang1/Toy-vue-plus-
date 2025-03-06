@@ -8,6 +8,10 @@ export function isFunction(value) {
   return typeof value === 'function'
 }
 
+export function isString(value) {
+  return typeof value === 'string'
+}
+
 export function toReactive(value) {
   return isObject(value) ? reactive(value) : value
 }
