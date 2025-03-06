@@ -11,3 +11,5 @@ export function isFunction(value) {
 export function toReactive(value) {
   return isObject(value) ? reactive(value) : value
 }
+
+export * from './shapeFlags'

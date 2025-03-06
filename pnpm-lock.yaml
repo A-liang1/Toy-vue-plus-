@@ -30,11 +30,20 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
-  packages/runtime-dom:
+  packages/runtime-core:
     dependencies:
       '@toy-vue/reactivity':
         specifier: workspace:*
         version: link:../reactivity
+      '@toy-vue/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/runtime-dom:
+    dependencies:
+      '@toy-vue/runtime-core':
+        specifier: workspace:*
+        version: link:../runtime-core
       '@toy-vue/shared':
         specifier: workspace:*
         version: link:../shared
