@@ -67,6 +67,33 @@ export function createRenderer(renderOptions) {
       unmount(chilren)
     }
   }
+  // 非首次渲染 全量diff算法
+  const patchKeyedChildren = (c1, c2, el) => {
+    // 比较两个儿子的差异 更新el真实dom
+    //双端对比
+    let i = 0
+    let e1 = c1.length - 1
+    let e2 = c2.length - 1
+    // 左端对比
+    while (i <= e1 && i <= e2) {
+      const n1 = c1[i]
+      const n2 = c2[i]
+      if (isSameVnode(n1, n2)) {
+        patch(n1, n2, el)
+      } else break
+      ++i
+    }
+    // 右端对比
+    while (i <= e1 && i <= e2) {
+      const n1 = c1[e1]
+      const n2 = c2[e2]
+      if (isSameVnode(n1, n2)) {
+        patch(n1, n2, el)
+      } else break
+      --e1
+      --e2
+    }
+  }
   // 非首次渲染 更新子节点
   const patchChildren = (n1, n2, el) => {
     const c1 = n1.children
@@ -94,6 +121,7 @@ export function createRenderer(renderOptions) {
       if (prevShapeFlag & ShapeFlags.ARRAY_CHILDREN) {
         if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
           // diff
+          patchKeyedChildren(c1, c2, el)
         } else {
           // 4. 老的是数组，新的是空，直接移除老的子节点
           unmountChildren(c1)
