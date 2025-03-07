@@ -21,7 +21,7 @@ export function createRenderer(renderOptions) {
     }
   }
   // 首次渲染 挂载元素
-  const mountElement = (vnode, container) => {
+  const mountElement = (vnode, container, anchor) => {
     const { type, children, props, shapeFlag } = vnode
     // 第一次渲染的时候让虚拟节点和真实的dom 创建关联 vnode.el = 真实dom
     // 第二次渲染新的vnode，可以和上一次次的vnode作比对，之后更新对应的el元素，可以后续再复用这个dom元素
@@ -36,13 +36,13 @@ export function createRenderer(renderOptions) {
     } else if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
       mountChildren(children, el)
     }
-    hostInsert(el, container)
+    hostInsert(el, container, anchor)
   }
 
   //  判断元素是否是首次渲染，决定走上边或下边的逻辑
-  const processElement = (n1, n2, container) => {
+  const processElement = (n1, n2, container, anchor) => {
     if (n1 === null) {
-      mountElement(n2, container)
+      mountElement(n2, container, anchor)
     } else {
       patchElement(n1, n2, container)
     }
@@ -93,6 +93,51 @@ export function createRenderer(renderOptions) {
       --e1
       --e2
     }
+    // 新的比老的多
+    if (i > e1) {
+      if (i <= e2) {
+        const nextPos = e2 + 1
+        const anchor = nextPos < c2.length ? c2[nextPos].el : null
+        while (i <= e2) {
+          patch(null, c2[i], el, anchor)
+          ++i
+        }
+      }
+    }
+    // 老的比新的多
+    else if (i > e2) {
+      while (i <= e1) {
+        unmount(c1[i])
+        ++i
+      }
+    }
+    // 中间对比
+    else {
+      let s1 = i
+      let s2 = i
+
+      const keyToNewIndexMap = new Map() // 做一个映射表用于快速查找，看老的节点在新的节点里边是否存在
+
+      for (let i = s2; i <= e2; i++) {
+        const vnode = c2[i]
+        if (vnode.key) keyToNewIndexMap.set(vnode.key, i)
+      }
+      for (let i = s1; i <= e1; i++) {
+        const vnode = c1[i]
+        const newIndex = keyToNewIndexMap.get(vnode.key)
+        if (newIndex === undefined) unmount(vnode)
+        else patch(vnode, c2[newIndex], el)
+      }
+
+      let toBePatched = e2 - s2 + 1 // 倒序插入的个数
+      for (let i = toBePatched; i >= 0; i--) {
+        const nextIndex = s2 + i
+        const nextChild = c2[nextIndex]
+        const anchor = nextIndex + 1 < c2.length ? c2[nextIndex + 1].el : null
+        if (!nextChild.el) patch(null, nextChild, el, anchor)
+        else hostInsert(nextChild.el, el, anchor) // 移动的元素已经存在el中，所以不需要再创建新的el
+      }
+    }
   }
   // 非首次渲染 更新子节点
   const patchChildren = (n1, n2, el) => {
@@ -141,7 +186,7 @@ export function createRenderer(renderOptions) {
   // 非首次渲染 更新
   const patchElement = (n1, n2, container) => {
     // 比较元素差异、比较属性和元素的子节点
-    const el = (n2.e1 = n1.el)
+    const el = (n2.el = n1.el)
     const oldProps = n1.props || {}
     const newProps = n2.props || {}
     patchProps(oldProps, newProps, el)
@@ -149,14 +194,14 @@ export function createRenderer(renderOptions) {
   }
 
   // patch打补丁，挂载或更新
-  const patch = (n1, n2, container) => {
+  const patch = (n1, n2, container, anchor = null) => {
     if (n1 === n2) return
     // ??? 存疑
     if (n1 && !isSameVnode(n1, n2)) {
       unmount(n1)
       n1 = null
     }
-    processElement(n1, n2, container) // 对元素处理，挂载或更新
+    processElement(n1, n2, container, anchor) // 对元素处理，挂载或更新
   }
   // render渲染更新
   const render = (vnode, container) => {
