@@ -13,14 +13,14 @@ export function createRenderer(renderOptions) {
     nextSibling: hostNextSibling,
     patchProp: hostPatchProp
   } = renderOptions
-
+  // 首次渲染 挂载子节点
   const mountChildren = (children, container) => {
     for (let i = 0; i < children.length; ++i) {
       // children[i] 可能是数组或字符串
       patch(null, children[i], container)
     }
   }
-
+  // 首次渲染 挂载元素
   const mountElement = (vnode, container) => {
     const { type, children, props, shapeFlag } = vnode
     // 第一次渲染的时候让虚拟节点和真实的dom 创建关联 vnode.el = 真实dom
@@ -39,6 +39,7 @@ export function createRenderer(renderOptions) {
     hostInsert(el, container)
   }
 
+  //  判断元素是否是首次渲染，决定走上边或下边的逻辑
   const processElement = (n1, n2, container) => {
     if (n1 === null) {
       mountElement(n2, container)
@@ -47,6 +48,7 @@ export function createRenderer(renderOptions) {
     }
   }
 
+  // 非首次渲染 更新属性
   const patchProps = (oldProps, newProps, el) => {
     for (let key in newProps) {
       hostPatchProp(el, key, oldProps[key], newProps[key])
@@ -58,7 +60,57 @@ export function createRenderer(renderOptions) {
       }
     }
   }
-  const patchChildren = (n1, n2, el) => {}
+  // 删除子节点工具函数
+  function unmountChildren(children) {
+    for (let i = 0; i < children.length; ++i) {
+      let chilren = children[i]
+      unmount(chilren)
+    }
+  }
+  // 非首次渲染 更新子节点
+  const patchChildren = (n1, n2, el) => {
+    const c1 = n1.children
+    const c2 = n2.children
+
+    const prevShapeFlag = n1.shapeFlag
+    const shapeFlag = n2.shapeFlag
+
+    if (c2 == null) {
+      if (c1 != null) {
+        unmountChildren(c1)
+      }
+      return
+    }
+
+    if (shapeFlag & ShapeFlags.TEXT_CHILDREN) {
+      // 1. 新的是文本，老的是数组
+      if (prevShapeFlag & ShapeFlags.ARRAY_CHILDREN) {
+        unmountChildren(c1)
+      }
+      // 2. 新的是文本，老的是文本，内容不相同替换
+      if (c1 !== c2) hostSetElementText(el, c2)
+    } else {
+      // 3. 新的是数组，老的是数组，全量diff算法
+      if (prevShapeFlag & ShapeFlags.ARRAY_CHILDREN) {
+        if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
+          // diff
+        } else {
+          // 4. 老的是数组，新的是空，直接移除老的子节点
+          unmountChildren(c1)
+        }
+      } else {
+        // 5. 老的是文本，新的是空
+        if (prevShapeFlag & ShapeFlags.TEXT_CHILDREN) {
+          hostSetElementText(el, '')
+        }
+        // 6. 新的是数组，老的是文本
+        if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
+          mountChildren(c2, el)
+        }
+      }
+    }
+  }
+  // 非首次渲染 更新
   const patchElement = (n1, n2, container) => {
     // 比较元素差异、比较属性和元素的子节点
     const el = (n2.e1 = n1.el)
@@ -68,18 +120,17 @@ export function createRenderer(renderOptions) {
     patchChildren(n1, n2, el)
   }
 
-  //渲染走这里，更新也走这里
+  // patch打补丁，挂载或更新
   const patch = (n1, n2, container) => {
     if (n1 === n2) return
-
+    // ??? 存疑
     if (n1 && !isSameVnode(n1, n2)) {
       unmount(n1)
       n1 = null
     }
-
-    processElement(n1, n2, container) // 对元素处理
+    processElement(n1, n2, container) // 对元素处理，挂载或更新
   }
-
+  // render渲染更新
   const render = (vnode, container) => {
     if (vnode == null) {
       if (container._vnode) unmount(container._vnode)
@@ -88,7 +139,8 @@ export function createRenderer(renderOptions) {
     container._vnode = vnode
   }
 
-  const unmount = (vnode) => {
+  // 移除元素工具方法
+  function unmount(vnode) {
     hostRemove(vnode.el)
   }
 
