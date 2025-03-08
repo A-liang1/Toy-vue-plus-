@@ -1,6 +1,7 @@
 import { ShapeFlags } from '@toy-vue/shared'
 import { Fragment, isSameVnode, Text } from './createVNode'
 import getSequence from './seq'
+import { reactive, ReactiveEffect } from '@toy-vue/reactivity'
 
 export function createRenderer(renderOptions) {
   const {
@@ -229,6 +230,44 @@ export function createRenderer(renderOptions) {
     else patchChildren(n1, n2, container)
   }
 
+  // 挂载组件
+  const mountComponent = (n1, n2, container, anchor) => {
+    const { data = () => {}, render } = n2.type
+
+    const state = reactive(data())
+
+    const instance = {
+      state, // 状态
+      vnode: n2, // 组件的虚拟节点
+      subTree: null, // 子树
+      isMounted: false, // 是否挂载完成
+      update: null // 组件的更新函数
+    }
+
+    const componentUpdateFn = () => {
+      // 要在这里区分，是第一次还是之后的
+      if (!instance.isMounted) {
+        const subTree = render.call(state, state)
+        instance.subTree = subTree
+        patch(null, subTree, container, anchor)
+        instance.isMounted = true
+      } else {
+        const subTree = render.call(state, state)
+        patch(instance.subTree, subTree, container, anchor)
+      }
+    }
+    const effect = new ReactiveEffect(componentUpdateFn, () => update())
+    const update = (instance.update = () => effect.run())
+    update()
+  }
+
+  // 组件处理
+  const processComponent = (n1, n2, container, anchor) => {
+    if (n1 == null) mountComponent(n1, n2, container, anchor)
+    else {
+    }
+  }
+
   // patch打补丁，挂载或更新
   const patch = (n1, n2, container, anchor = null) => {
     if (n1 === n2) return
@@ -237,7 +276,7 @@ export function createRenderer(renderOptions) {
       unmount(n1)
       n1 = null
     }
-    const { type } = n2
+    const { type, shapeFlag } = n2
     switch (type) {
       // 对Text文本处理
       case Text:
@@ -249,7 +288,12 @@ export function createRenderer(renderOptions) {
         break
       // 对元素处理，挂载或更新
       default:
-        processElement(n1, n2, container, anchor)
+        if (shapeFlag & ShapeFlags.ELEMENT) {
+          processElement(n1, n2, container, anchor)
+        } else if (shapeFlag & ShapeFlags.COMPONENT) {
+          // 对组件的处理，vue3中函数式组件已经废弃，没有性能节约
+          processComponent(n1, n2, container, anchor)
+        }
     }
   }
   // render渲染更新
