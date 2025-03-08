@@ -1,5 +1,5 @@
 import { ShapeFlags } from '@toy-vue/shared'
-import { isSameVnode, Text } from './createVNode'
+import { Fragment, isSameVnode, Text } from './createVNode'
 import getSequence from './seq'
 
 export function createRenderer(renderOptions) {
@@ -42,11 +42,8 @@ export function createRenderer(renderOptions) {
 
   // 判断元素是否是首次渲染，决定走上边或下边的逻辑
   const processElement = (n1, n2, container, anchor) => {
-    if (n1 === null) {
-      mountElement(n2, container, anchor)
-    } else {
-      patchElement(n1, n2, container)
-    }
+    if (n1 === null) mountElement(n2, container, anchor)
+    else patchElement(n1, n2, container)
   }
 
   // 元素 非首次渲染 更新属性
@@ -225,18 +222,30 @@ export function createRenderer(renderOptions) {
       }
     }
   }
+
+  // Fragment
+  const processFragment = (n1, n2, container) => {
+    if (n1 === null) mountChildren(n2.children, container)
+    else patchChildren(n1, n2, container)
+  }
+
   // patch打补丁，挂载或更新
   const patch = (n1, n2, container, anchor = null) => {
     if (n1 === n2) return
-    // ??? 存疑
+
     if (n1 && !isSameVnode(n1, n2)) {
       unmount(n1)
       n1 = null
     }
     const { type } = n2
     switch (type) {
+      // 对Text文本处理
       case Text:
         processText(n1, n2, container)
+        break
+      // 对Fragment处理
+      case Fragment:
+        processFragment(n1, n2, container)
         break
       // 对元素处理，挂载或更新
       default:
@@ -255,7 +264,8 @@ export function createRenderer(renderOptions) {
 
   // 移除元素工具方法
   function unmount(vnode) {
-    hostRemove(vnode.el)
+    if (vnode.type === Fragment) unmountChildren(vnode.children)
+    else hostRemove(vnode.el)
   }
 
   return {
