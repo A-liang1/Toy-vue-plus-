@@ -2,6 +2,7 @@ import { ShapeFlags } from '@toy-vue/shared'
 import { Fragment, isSameVnode, Text } from './createVNode'
 import getSequence from './seq'
 import { reactive, ReactiveEffect } from '@toy-vue/reactivity'
+import queueJob from './scheduler'
 
 export function createRenderer(renderOptions) {
   const {
@@ -256,7 +257,7 @@ export function createRenderer(renderOptions) {
         patch(instance.subTree, subTree, container, anchor)
       }
     }
-    const effect = new ReactiveEffect(componentUpdateFn, () => update())
+    const effect = new ReactiveEffect(componentUpdateFn, () => queueJob(update))
     const update = (instance.update = () => effect.run())
     update()
   }
