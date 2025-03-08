@@ -1,5 +1,6 @@
 import { ShapeFlags } from '@toy-vue/shared'
 import { isSameVnode } from './createVNode'
+import getSequence from './seq'
 
 export function createRenderer(renderOptions) {
   const {
@@ -63,11 +64,11 @@ export function createRenderer(renderOptions) {
   // 删除子节点工具函数
   function unmountChildren(children) {
     for (let i = 0; i < children.length; ++i) {
-      let chilren = children[i]
-      unmount(chilren)
+      let child = children[i]
+      unmount(child)
     }
   }
-  // 非首次渲染 全量diff算法
+  // 非首次渲染 全量diff算法 (1)   快速diff(靶向更新)->基于模版编译的 (2)
   const patchKeyedChildren = (c1, c2, el) => {
     // 比较两个儿子的差异 更新el真实dom
     //双端对比
@@ -117,25 +118,44 @@ export function createRenderer(renderOptions) {
       let s2 = i
 
       const keyToNewIndexMap = new Map() // 做一个映射表用于快速查找，看老的节点在新的节点里边是否存在
+      let toBePatched = e2 - s2 + 1 // 倒序插入的个数
 
+      const newIndexToOldIndexMap = new Array(toBePatched).fill(0) // 记录新节点在老节点中的位置
+
+      // 遍历新节点，记录key和index
       for (let i = s2; i <= e2; i++) {
         const vnode = c2[i]
         if (vnode.key) keyToNewIndexMap.set(vnode.key, i)
       }
+      console.log(keyToNewIndexMap, '老节点在新节点中是否存在')
+      // 遍历老节点，查找新节点是否存在，不存在则删除，存在则更新
       for (let i = s1; i <= e1; i++) {
         const vnode = c1[i]
         const newIndex = keyToNewIndexMap.get(vnode.key)
         if (newIndex === undefined) unmount(vnode)
-        else patch(vnode, c2[newIndex], el)
+        else {
+          // 记录新节点在老节点中的位置，+1 是因为0为空(i可能是0)
+          newIndexToOldIndexMap[newIndex - s2] = i + 1
+          console.log(newIndex, s2, newIndexToOldIndexMap, '新节点在老节点中的位置-->[1,2]')
+          patch(vnode, c2[newIndex], el)
+        }
       }
 
-      let toBePatched = e2 - s2 + 1 // 倒序插入的个数
-      for (let i = toBePatched; i >= 0; i--) {
+      let increasingSeq = getSequence(newIndexToOldIndexMap)
+      let j = increasingSeq.length - 1
+
+      console.log(increasingSeq)
+      // 倒序插入
+      for (let i = toBePatched - 1; i >= 0; i--) {
         const nextIndex = s2 + i
         const nextChild = c2[nextIndex]
         const anchor = nextIndex + 1 < c2.length ? c2[nextIndex + 1].el : null
         if (!nextChild.el) patch(null, nextChild, el, anchor)
-        else hostInsert(nextChild.el, el, anchor) // 移动的元素已经存在el中，所以不需要再创建新的el
+        else {
+          // 移动的元素已经存在el中，所以不需要再创建新的el
+          if (i === increasingSeq[j]) j--
+          else hostInsert(nextChild.el, el, anchor)
+        }
       }
     }
   }
