@@ -6,6 +6,7 @@ export default function queueJob(job) {
   if (!queue.includes(job)) {
     queue.push(job)
   }
+
   if (!isFlushing) {
     isFlushing = true
 
@@ -14,6 +15,8 @@ export default function queueJob(job) {
 
       const copy = queue.slice(0)
       queue.length = 0
+      // debugger
+      // 先执行两个age++，然后console.log(age)
       copy.forEach((job) => job())
       copy.length = 0
     })

@@ -230,20 +230,50 @@ export function createRenderer(renderOptions) {
     if (n1 === null) mountChildren(n2.children, container)
     else patchChildren(n1, n2, container)
   }
+  // 初始化属性
+  const initProps = (instance, rawProps) => {
+    const props = {}
+    const attrs = {}
+    // 用户在组件中的props
+    const propsOptions = instance.propsOptions || {}
+    // 所有的
+    if (rawProps) {
+      for (let key in rawProps) {
+        const value = rawProps[key]
+        if (key in propsOptions) props[key] = value
+        else attrs[key] = value
+      }
+    }
+    instance.attrs = attrs
+    instance.props = props
+  }
 
   // 挂载组件
-  const mountComponent = (n1, n2, container, anchor) => {
-    const { data = () => {}, render } = n2.type
+  const mountComponent = (vnode, container, anchor) => {
+    const { data = () => {}, render, props: propsOptions = {} } = vnode.type
 
     const state = reactive(data())
 
     const instance = {
       state, // 状态
-      vnode: n2, // 组件的虚拟节点
+      vnode, // 组件的虚拟节点
       subTree: null, // 子树
       isMounted: false, // 是否挂载完成
-      update: null // 组件的更新函数
+      update: null, // 组件的更新函数
+      props: {},
+      attrs: {},
+      propsOptions,
+      component: null
     }
+
+    // 根据propsOptions来区分props，attrs
+    vnode.component = instance
+    // 元素更新 n2.el = n1.el
+    // 组件更新 n2.component.subTree.el = n1.component.subTree.el
+    // 初始化属性
+    initProps(instance, vnode.props)
+
+    console.log(instance)
 
     const componentUpdateFn = () => {
       // 要在这里区分，是第一次还是之后的
@@ -264,7 +294,7 @@ export function createRenderer(renderOptions) {
 
   // 组件处理
   const processComponent = (n1, n2, container, anchor) => {
-    if (n1 == null) mountComponent(n1, n2, container, anchor)
+    if (n1 == null) mountComponent(n2, container, anchor)
     else {
     }
   }
