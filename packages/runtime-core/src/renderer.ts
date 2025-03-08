@@ -1,5 +1,5 @@
 import { ShapeFlags } from '@toy-vue/shared'
-import { isSameVnode } from './createVNode'
+import { isSameVnode, Text } from './createVNode'
 import getSequence from './seq'
 
 export function createRenderer(renderOptions) {
@@ -14,14 +14,14 @@ export function createRenderer(renderOptions) {
     nextSibling: hostNextSibling,
     patchProp: hostPatchProp
   } = renderOptions
-  // 首次渲染 挂载子节点
+  // 元素 首次渲染 挂载子节点
   const mountChildren = (children, container) => {
     for (let i = 0; i < children.length; ++i) {
       // children[i] 可能是数组或字符串
       patch(null, children[i], container)
     }
   }
-  // 首次渲染 挂载元素
+  // 元素 首次渲染 挂载元素
   const mountElement = (vnode, container, anchor) => {
     const { type, children, props, shapeFlag } = vnode
     // 第一次渲染的时候让虚拟节点和真实的dom 创建关联 vnode.el = 真实dom
@@ -40,7 +40,7 @@ export function createRenderer(renderOptions) {
     hostInsert(el, container, anchor)
   }
 
-  //  判断元素是否是首次渲染，决定走上边或下边的逻辑
+  // 判断元素是否是首次渲染，决定走上边或下边的逻辑
   const processElement = (n1, n2, container, anchor) => {
     if (n1 === null) {
       mountElement(n2, container, anchor)
@@ -49,7 +49,7 @@ export function createRenderer(renderOptions) {
     }
   }
 
-  // 非首次渲染 更新属性
+  // 元素 非首次渲染 更新属性
   const patchProps = (oldProps, newProps, el) => {
     for (let key in newProps) {
       hostPatchProp(el, key, oldProps[key], newProps[key])
@@ -68,7 +68,7 @@ export function createRenderer(renderOptions) {
       unmount(child)
     }
   }
-  // 非首次渲染 全量diff算法 (1)   快速diff(靶向更新)->基于模版编译的 (2)
+  // 元素 非首次渲染 全量diff算法 (1)   快速diff(靶向更新)->基于模版编译的 (2)
   const patchKeyedChildren = (c1, c2, el) => {
     // 比较两个儿子的差异 更新el真实dom
     //双端对比
@@ -159,7 +159,7 @@ export function createRenderer(renderOptions) {
       }
     }
   }
-  // 非首次渲染 更新子节点
+  // 元素 非首次渲染 更新子节点
   const patchChildren = (n1, n2, el) => {
     const c1 = n1.children
     const c2 = n2.children
@@ -203,7 +203,7 @@ export function createRenderer(renderOptions) {
       }
     }
   }
-  // 非首次渲染 更新
+  // 元素 非首次渲染 更新
   const patchElement = (n1, n2, container) => {
     // 比较元素差异、比较属性和元素的子节点
     const el = (n2.el = n1.el)
@@ -213,6 +213,18 @@ export function createRenderer(renderOptions) {
     patchChildren(n1, n2, el)
   }
 
+  // Text文本
+  const processText = (n1, n2, container) => {
+    if (n1 == null) {
+      // 1.虚拟节点要关联真实节点  2.将节点插入到页面中
+      hostInsert((n2.el = hostCreateText(n2.children)), container)
+    } else {
+      const el = (n2.el = n1.el)
+      if (n1.children !== n2.children) {
+        hostSetText(el, n2.children)
+      }
+    }
+  }
   // patch打补丁，挂载或更新
   const patch = (n1, n2, container, anchor = null) => {
     if (n1 === n2) return
@@ -221,15 +233,24 @@ export function createRenderer(renderOptions) {
       unmount(n1)
       n1 = null
     }
-    processElement(n1, n2, container, anchor) // 对元素处理，挂载或更新
+    const { type } = n2
+    switch (type) {
+      case Text:
+        processText(n1, n2, container)
+        break
+      // 对元素处理，挂载或更新
+      default:
+        processElement(n1, n2, container, anchor)
+    }
   }
   // render渲染更新
   const render = (vnode, container) => {
     if (vnode == null) {
       if (container._vnode) unmount(container._vnode)
+    } else {
+      patch(container._vnode || null, vnode, container)
+      container._vnode = vnode
     }
-    patch(container._vnode || null, vnode, container)
-    container._vnode = vnode
   }
 
   // 移除元素工具方法
