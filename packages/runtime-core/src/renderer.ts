@@ -262,11 +262,43 @@ export function createRenderer(renderOptions) {
     setupRenderEffect(instance, container, anchor)
   }
 
+  // 更新组件工具函数 比较前后props是否有变化
+  function hasPropsChange(prevProps, nextProps) {
+    const nKeys = Object.keys(nextProps)
+    if (nKeys.length !== Object.keys(prevProps).length) return true
+
+    for (let i = 0; i < nKeys.length; ++i) {
+      const key = nKeys[i]
+      if (nextProps[key] !== prevProps[key]) return true
+    }
+    return false
+  }
+  //更新组件
+  const updateProps = (instance, prvVprops, nextProps) => {
+    if (hasPropsChange(prvVprops, nextProps)) {
+      // 用新的覆盖老的
+      for (let key in nextProps) {
+        instance.props[key] = nextProps[key]
+      }
+      // 删除多余老的
+      for (let key in instance.props) {
+        if (!hasOwn(nextProps, key)) delete instance.props[key]
+      }
+    }
+  }
+
+  const updateComponent = (n1, n2) => {
+    const instance = (n2.component = n1.component)
+    const { props: prevProps } = n1
+    const { props: nextProps } = n2
+
+    updateProps(instance, prevProps, nextProps)
+  }
+
   // 组件处理
   const processComponent = (n1, n2, container, anchor) => {
     if (n1 == null) mountComponent(n2, container, anchor)
-    else {
-    }
+    else updateComponent(n1, n2)
   }
 
   // patch打补丁，挂载或更新

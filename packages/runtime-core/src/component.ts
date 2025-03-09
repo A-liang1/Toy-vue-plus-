@@ -70,7 +70,7 @@ export function setupComponent(instance) {
   // 初始化代理对象
   instance.proxy = new Proxy(instance, handler)
 
-  const { data, render } = vnode.type
+  const { data = () => {}, render } = vnode.type
   if (!isFunction(data)) return console.warn('data must be a function')
 
   // data可以拿到props

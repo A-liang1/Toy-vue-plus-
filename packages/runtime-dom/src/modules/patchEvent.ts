@@ -15,11 +15,11 @@ export default function patchEvent(el, name, nextValue) {
 
   if (nextValue) {
     const invoker = (invokers[name] = createInvoker(nextValue))
-    return el.addEventerListener(eventName, invoker)
+    return el.addEventListener(eventName, invoker)
   }
 
   if (exisitingInvokers) {
-    el.removeEventerListener(eventName, exisitingInvokers)
+    el.removeEventListener(eventName, exisitingInvokers)
     invokers[name] = undefined
   }
 }
