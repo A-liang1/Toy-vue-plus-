@@ -1,4 +1,4 @@
-import { ShapeFlags } from '@toy-vue/shared'
+import { hasOwn, ShapeFlags } from '@toy-vue/shared'
 import { Fragment, isSameVnode, Text } from './createVNode'
 import getSequence from './seq'
 import { reactive, ReactiveEffect } from '@toy-vue/reactivity'
@@ -263,7 +263,8 @@ export function createRenderer(renderOptions) {
       props: {},
       attrs: {},
       propsOptions,
-      component: null
+      component: null,
+      proxy: null // 代理props，attrs，data
     }
 
     // 根据propsOptions来区分props，attrs
@@ -273,17 +274,44 @@ export function createRenderer(renderOptions) {
     // 初始化属性
     initProps(instance, vnode.props)
 
-    console.log(instance)
+    // props.name attrs.a data.y
 
+    const publiceProerty = {
+      $attrs: (instance) => instance.attrs
+    }
+    instance.proxy = new Proxy(instance, {
+      get(target, key) {
+        const { state, props } = target
+
+        if (state && hasOwn(state, key)) {
+          return state[key]
+        } else if (props && hasOwn(props, key)) {
+          return props[key]
+        }
+        // 对于一些无法修改的属性 $slots $attrs->instance.attrs
+        const getter = publiceProerty[key] // 通过不同的策略来访问对应的方法
+        if (getter) return getter(target)
+      },
+      set(target, key, value) {
+        const { state, props } = target
+        if (state && hasOwn(state, key)) {
+          state[key] = value
+        } else if (props && hasOwn(props, key)) {
+          console.warn(`props is readonly`)
+          return false
+        }
+        return true
+      }
+    })
     const componentUpdateFn = () => {
       // 要在这里区分，是第一次还是之后的
       if (!instance.isMounted) {
-        const subTree = render.call(state, state)
+        const subTree = render.call(state, instance.proxy)
         instance.subTree = subTree
         patch(null, subTree, container, anchor)
         instance.isMounted = true
       } else {
-        const subTree = render.call(state, state)
+        const subTree = render.call(state, instance.proxy)
         patch(instance.subTree, subTree, container, anchor)
       }
     }
