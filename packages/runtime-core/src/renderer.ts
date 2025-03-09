@@ -4,6 +4,7 @@ import getSequence from './seq'
 import { reactive, ReactiveEffect } from '@toy-vue/reactivity'
 import queueJob from './scheduler'
 import { createComponentInstance, setupComponent } from './component'
+import { invokeArray } from '@toy-vue/runtime-dom'
 
 export function createRenderer(renderOptions) {
   const {
@@ -244,19 +245,29 @@ export function createRenderer(renderOptions) {
     const componentUpdateFn = () => {
       // 要在这里区分，是第一次还是之后的
       if (!instance.isMounted) {
+        const { bm, m } = instance
+        if (bm) invokeArray(bm)
+
         const subTree = render.call(instance.proxy, instance.proxy)
         patch(null, subTree, container, anchor)
         instance.isMounted = true
         instance.subTree = subTree
+
+        if (m) invokeArray(m)
       } else {
-        const { next } = instance
+        const { next, bu, u } = instance
         if (next) {
           //更新属性或插槽
           updateComponentPreRender(instance, next)
         }
+
+        if (bu) invokeArray(bu)
+
         const subTree = render.call(instance.proxy, instance.proxy)
         patch(instance.subTree, subTree, container, anchor)
         instance.subTree = subTree
+
+        if (u) invokeArray(u)
       }
     }
     const effect = new ReactiveEffect(componentUpdateFn, () => queueJob(update))
@@ -346,6 +357,8 @@ export function createRenderer(renderOptions) {
       default:
         if (shapeFlag & ShapeFlags.ELEMENT) {
           processElement(n1, n2, container, anchor)
+        } else if (shapeFlag & ShapeFlags.TELEPORT) {
+          type.process(n1, n2, container, anchor)
         } else if (shapeFlag & ShapeFlags.COMPONENT) {
           // 对组件的处理，vue3中函数式组件已经废弃，没有性能节约
           processComponent(n1, n2, container, anchor)

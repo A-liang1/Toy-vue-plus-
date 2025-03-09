@@ -1,4 +1,4 @@
-import { isObject, isString, ShapeFlags } from '@toy-vue/shared'
+import { isFunction, isObject, isString, ShapeFlags } from '@toy-vue/shared'
 
 export const Text = Symbol('Text')
 export const Fragment = Symbol('Fragment')
@@ -16,7 +16,10 @@ export function createVNode(type, props, children?) {
     ? ShapeFlags.ELEMENT
     : isObject(type)
       ? ShapeFlags.STATEFUL_COMPONENT
-      : 0
+      : isFunction(type)
+        ? ShapeFlags.FUNCTIONAL_COMPONENT
+        : 0
+
   const vnode = {
     __v_isVnode: true,
     type,
@@ -37,6 +40,5 @@ export function createVNode(type, props, children?) {
       vnode.shapeFlag |= ShapeFlags.TEXT_CHILDREN
     }
   }
-
   return vnode
 }

@@ -102,7 +102,9 @@ export function setupComponent(instance) {
         handler && handler(...payload)
       }
     }
+    setCurrentInstance(instance)
     const setupResult = setup(instance.props, setupContext)
+    unsetCurrentInstance()
     if (isFunction(setupResult)) {
       instance.render = setupResult
     } else {
@@ -113,4 +115,15 @@ export function setupComponent(instance) {
   // data可以拿到props
   instance.data = reactive(data.call(instance.proxy))
   if (!instance.render) instance.render = render
+}
+
+export let currentInstance = null
+export const getCurrentInstance = () => {
+  return currentInstance
+}
+export const setCurrentInstance = (instance) => {
+  currentInstance = instance
+}
+export const unsetCurrentInstance = () => {
+  currentInstance = null
 }
