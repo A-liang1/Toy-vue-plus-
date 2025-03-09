@@ -3,6 +3,7 @@ import { Fragment, isSameVnode, Text } from './createVNode'
 import getSequence from './seq'
 import { reactive, ReactiveEffect } from '@toy-vue/reactivity'
 import queueJob from './scheduler'
+import { createComponentInstance, setupComponent } from './component'
 
 export function createRenderer(renderOptions) {
   const {
@@ -230,94 +231,35 @@ export function createRenderer(renderOptions) {
     if (n1 === null) mountChildren(n2.children, container)
     else patchChildren(n1, n2, container)
   }
-  // 初始化属性
-  const initProps = (instance, rawProps) => {
-    const props = {}
-    const attrs = {}
-    // 用户在组件中的props
-    const propsOptions = instance.propsOptions || {}
-    // 所有的
-    if (rawProps) {
-      for (let key in rawProps) {
-        const value = rawProps[key]
-        if (key in propsOptions) props[key] = value
-        else attrs[key] = value
-      }
-    }
-    instance.attrs = attrs
-    instance.props = props
-  }
 
-  // 挂载组件
-  const mountComponent = (vnode, container, anchor) => {
-    const { data = () => {}, render, props: propsOptions = {} } = vnode.type
-
-    const state = reactive(data())
-
-    const instance = {
-      state, // 状态
-      vnode, // 组件的虚拟节点
-      subTree: null, // 子树
-      isMounted: false, // 是否挂载完成
-      update: null, // 组件的更新函数
-      props: {},
-      attrs: {},
-      propsOptions,
-      component: null,
-      proxy: null // 代理props，attrs，data
-    }
-
-    // 根据propsOptions来区分props，attrs
-    vnode.component = instance
-    // 元素更新 n2.el = n1.el
-    // 组件更新 n2.component.subTree.el = n1.component.subTree.el
-    // 初始化属性
-    initProps(instance, vnode.props)
-
-    // props.name attrs.a data.y
-
-    const publiceProerty = {
-      $attrs: (instance) => instance.attrs
-    }
-    instance.proxy = new Proxy(instance, {
-      get(target, key) {
-        const { state, props } = target
-
-        if (state && hasOwn(state, key)) {
-          return state[key]
-        } else if (props && hasOwn(props, key)) {
-          return props[key]
-        }
-        // 对于一些无法修改的属性 $slots $attrs->instance.attrs
-        const getter = publiceProerty[key] // 通过不同的策略来访问对应的方法
-        if (getter) return getter(target)
-      },
-      set(target, key, value) {
-        const { state, props } = target
-        if (state && hasOwn(state, key)) {
-          state[key] = value
-        } else if (props && hasOwn(props, key)) {
-          console.warn(`props is readonly`)
-          return false
-        }
-        return true
-      }
-    })
+  // 挂载组件的effect
+  function setupRenderEffect(instance, container, anchor) {
+    const { render } = instance
     const componentUpdateFn = () => {
       // 要在这里区分，是第一次还是之后的
       if (!instance.isMounted) {
-        const subTree = render.call(state, instance.proxy)
-        instance.subTree = subTree
+        const subTree = render.call(instance.proxy, instance.proxy)
         patch(null, subTree, container, anchor)
         instance.isMounted = true
+        instance.subTree = subTree
       } else {
-        const subTree = render.call(state, instance.proxy)
+        const subTree = render.call(instance.proxy, instance.proxy)
         patch(instance.subTree, subTree, container, anchor)
+        instance.subTree = subTree
       }
     }
     const effect = new ReactiveEffect(componentUpdateFn, () => queueJob(update))
     const update = (instance.update = () => effect.run())
     update()
+  }
+  // 挂载组件
+  const mountComponent = (vnode, container, anchor) => {
+    // 1. 创建组件实例
+    const instance = (vnode.component = createComponentInstance(vnode))
+    // 2. 给实例的属性赋值
+    setupComponent(instance)
+    // 3. 创建一个effect
+    setupRenderEffect(instance, container, anchor)
   }
 
   // 组件处理
