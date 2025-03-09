@@ -1,5 +1,5 @@
-import { reactive } from '@toy-vue/reactivity'
-import { hasOwn, isFunction } from '@toy-vue/shared'
+import { proxyRefs, reactive } from '@toy-vue/reactivity'
+import { hasOwn, isFunction, ShapeFlags } from '@toy-vue/shared'
 import { render } from '../../runtime-dom/src/index'
 
 export function createComponentInstance(vnode) {
@@ -11,9 +11,11 @@ export function createComponentInstance(vnode) {
     update: null, // 组件的更新函数
     props: {},
     attrs: {},
+    slots: {},
     propsOptions: vnode.type.props, // 用户声明的哪些属性是组件的属性
     component: null,
-    proxy: null // 代理props，attrs，data
+    proxy: null, // 代理props，attrs，data
+    setupState: {}
   }
   return instance
 }
@@ -36,45 +38,68 @@ const initProps = (instance, rawProps) => {
 }
 
 const publiceProerty = {
-  $attrs: (instance) => instance.attrs
+  $attrs: (instance) => instance.attrs,
+  $slots: (instance) => instance.slots
 }
 const handler = {
   get(target, key) {
-    const { data, props } = target
+    const { data, props, setupState } = target
 
     if (data && hasOwn(data, key)) {
       return data[key]
     } else if (props && hasOwn(props, key)) {
       return props[key]
+    } else if (setupState && hasOwn(setupState, key)) {
+      return setupState[key]
     }
     // 对于一些无法修改的属性 $slots $attrs->instance.attrs
     const getter = publiceProerty[key] // 通过不同的策略来访问对应的方法
     if (getter) return getter(target)
   },
   set(target, key, value) {
-    const { data, props } = target
+    const { data, props, setupState } = target
     if (data && hasOwn(data, key)) {
       data[key] = value
     } else if (props && hasOwn(props, key)) {
       console.warn(`props is readonly`)
       return false
+    } else if (setupState && hasOwn(setupState, key)) {
+      setupState[key] = value
     }
     return true
   }
+}
+
+export function initSlots(instance, children) {
+  if (instance.vnode.shapeFlag & ShapeFlags.SLOTS_CHILDREN) {
+    instance.slots = children
+  } else instance.slots = {}
 }
 
 export function setupComponent(instance) {
   const { vnode } = instance
   // 初始化属性: 区分props，attrs
   initProps(instance, vnode.props)
+  initSlots(instance, vnode.children)
   // 初始化代理对象
   instance.proxy = new Proxy(instance, handler)
 
-  const { data = () => {}, render } = vnode.type
+  const { data = () => {}, render, setup } = vnode.type
   if (!isFunction(data)) return console.warn('data must be a function')
+
+  if (setup) {
+    const setupContext = {
+      // ......
+    }
+    const setupResult = setup(instance.props, setupContext)
+    if (isFunction(setupResult)) {
+      instance.render = setupResult
+    } else {
+      instance.setupState = proxyRefs(setupResult) // 将返回的值做脱ref
+    }
+  }
 
   // data可以拿到props
   instance.data = reactive(data.call(instance.proxy))
-
-  instance.render = render
+  if (!instance.render) instance.render = render
 }
