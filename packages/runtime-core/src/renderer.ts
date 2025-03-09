@@ -232,6 +232,12 @@ export function createRenderer(renderOptions) {
     else patchChildren(n1, n2, container)
   }
 
+  // 更新组件属性和插槽
+  const updateComponentPreRender = (instance, next) => {
+    instance.next = null
+    instance.vnode = next
+    updateProps(instance, instance.props, next.props)
+  }
   // 挂载组件的effect
   function setupRenderEffect(instance, container, anchor) {
     const { render } = instance
@@ -243,6 +249,11 @@ export function createRenderer(renderOptions) {
         instance.isMounted = true
         instance.subTree = subTree
       } else {
+        const { next } = instance
+        if (next) {
+          //更新属性或插槽
+          updateComponentPreRender(instance, next)
+        }
         const subTree = render.call(instance.proxy, instance.proxy)
         patch(instance.subTree, subTree, container, anchor)
         instance.subTree = subTree
@@ -273,7 +284,7 @@ export function createRenderer(renderOptions) {
     }
     return false
   }
-  //更新组件
+  //更新组件props
   const updateProps = (instance, prvVprops, nextProps) => {
     if (hasPropsChange(prvVprops, nextProps)) {
       // 用新的覆盖老的
@@ -286,13 +297,25 @@ export function createRenderer(renderOptions) {
       }
     }
   }
+  // 组件更新时判断是否需要更新
+  const shouldComponentUpdate = (n1, n2) => {
+    const { props: prevProps, children: prevChildren } = n1
+    const { props: nextProps, children: nextChildren } = n2
 
+    if (prevChildren || nextChildren) return true // 有插槽直接走重新渲染即可
+    if (prevProps === nextProps) return false
+    // 如果属性不一致实则更新
+    return hasPropsChange(prevProps, nextProps)
+    // updateProps(instance, prevProps, nextProps)
+  }
+  // 更新组件
   const updateComponent = (n1, n2) => {
     const instance = (n2.component = n1.component)
-    const { props: prevProps } = n1
-    const { props: nextProps } = n2
-
-    updateProps(instance, prevProps, nextProps)
+    // 把对属性和插槽的更新放到组件的effect中
+    if (shouldComponentUpdate(n1, n2)) {
+      instance.next = n2
+      instance.update()
+    }
   }
 
   // 组件处理
