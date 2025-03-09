@@ -364,7 +364,9 @@ export function createRenderer(renderOptions) {
 
   // 移除元素工具方法
   function unmount(vnode) {
+    const { shapeFlag } = vnode
     if (vnode.type === Fragment) unmountChildren(vnode.children)
+    else if (shapeFlag & ShapeFlags.COMPONENT) unmount(vnode.component.subTree)
     else hostRemove(vnode.el)
   }
 

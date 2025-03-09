@@ -15,7 +15,8 @@ export function createComponentInstance(vnode) {
     propsOptions: vnode.type.props, // 用户声明的哪些属性是组件的属性
     component: null,
     proxy: null, // 代理props，attrs，data
-    setupState: {}
+    setupState: {},
+    exposed: {} // 暴露出去的属性
   }
   return instance
 }
@@ -90,6 +91,16 @@ export function setupComponent(instance) {
   if (setup) {
     const setupContext = {
       // ......
+      slots: instance.slots,
+      attrs: instance.attrs,
+      expose(value) {
+        instance.exposed = value
+      },
+      emit(event, ...payload) {
+        const eventName = `on${event[0].toUpperCase()}${event.slice(1)}`
+        const handler = instance.vnode.props[eventName]
+        handler && handler(...payload)
+      }
     }
     const setupResult = setup(instance.props, setupContext)
     if (isFunction(setupResult)) {
