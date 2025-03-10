@@ -239,16 +239,25 @@ export function createRenderer(renderOptions) {
     instance.vnode = next
     updateProps(instance, instance.props, next.props)
   }
+  // 初始化subTree，区分函数组件、状态组件
+  function renderComponent(instance) {
+    const { render, vnode, proxy, props, attrs } = instance
+
+    if (vnode.shapeFlag & ShapeFlags.STATEFUL_COMPONENT) {
+      return render.call(proxy, proxy)
+    } else {
+      return vnode.type(attrs)
+    }
+  }
   // 挂载组件的effect
   function setupRenderEffect(instance, container, anchor) {
-    const { render } = instance
     const componentUpdateFn = () => {
       // 要在这里区分，是第一次还是之后的
       if (!instance.isMounted) {
         const { bm, m } = instance
         if (bm) invokeArray(bm)
 
-        const subTree = render.call(instance.proxy, instance.proxy)
+        const subTree = renderComponent(instance)
         patch(null, subTree, container, anchor)
         instance.isMounted = true
         instance.subTree = subTree
@@ -263,7 +272,7 @@ export function createRenderer(renderOptions) {
 
         if (bu) invokeArray(bu)
 
-        const subTree = render.call(instance.proxy, instance.proxy)
+        const subTree = renderComponent(instance)
         patch(instance.subTree, subTree, container, anchor)
         instance.subTree = subTree
 
