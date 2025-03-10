@@ -1,7 +1,7 @@
 import { hasOwn, ShapeFlags } from '@toy-vue/shared'
 import { Fragment, isSameVnode, Text } from './createVNode'
 import getSequence from './seq'
-import { reactive, ReactiveEffect } from '@toy-vue/reactivity'
+import { isRef, reactive, ReactiveEffect } from '@toy-vue/reactivity'
 import queueJob from './scheduler'
 import { createComponentInstance, setupComponent } from './component'
 import { invokeArray } from '@toy-vue/runtime-dom'
@@ -343,7 +343,7 @@ export function createRenderer(renderOptions) {
       unmount(n1)
       n1 = null
     }
-    const { type, shapeFlag } = n2
+    const { type, shapeFlag, ref } = n2
     switch (type) {
       // 对Text文本处理
       case Text:
@@ -363,6 +363,19 @@ export function createRenderer(renderOptions) {
           // 对组件的处理，vue3中函数式组件已经废弃，没有性能节约
           processComponent(n1, n2, container, anchor)
         }
+    }
+    if (ref !== null) {
+      // n2 是dom 还是 组件有expose
+      setRef(ref, n2)
+    }
+  }
+  function setRef(rawRef, vnode) {
+    const value =
+      vnode.shapeFlag & ShapeFlags.STATEFUL_COMPONENT
+        ? vnode.component.exposed || vnode.component.proxy
+        : vnode.el
+    if (isRef(rawRef)) {
+      rawRef.value = value
     }
   }
   // render渲染更新

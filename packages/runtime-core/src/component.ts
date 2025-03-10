@@ -16,7 +16,7 @@ export function createComponentInstance(vnode) {
     component: null,
     proxy: null, // 代理props，attrs，data
     setupState: {},
-    exposed: {} // 暴露出去的属性
+    exposed: null // 暴露出去的属性,不能是{},在ref时会认为exposed始终有值
   }
   return instance
 }
