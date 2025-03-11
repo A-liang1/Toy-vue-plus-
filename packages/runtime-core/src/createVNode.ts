@@ -1,3 +1,4 @@
+import { isTeleport } from '@toy-vue/runtime-dom'
 import { isFunction, isObject, isString, ShapeFlags } from '@toy-vue/shared'
 
 export const Text = Symbol('Text')
@@ -14,11 +15,13 @@ export function isSameVnode(n1, n2) {
 export function createVNode(type, props, children?) {
   const shapeFlag = isString(type)
     ? ShapeFlags.ELEMENT
-    : isObject(type)
-      ? ShapeFlags.STATEFUL_COMPONENT
-      : isFunction(type)
-        ? ShapeFlags.FUNCTIONAL_COMPONENT
-        : 0
+    : isTeleport(type)
+      ? ShapeFlags.TELEPORT
+      : isObject(type)
+        ? ShapeFlags.STATEFUL_COMPONENT
+        : isFunction(type)
+          ? ShapeFlags.FUNCTIONAL_COMPONENT
+          : 0
 
   const vnode = {
     __v_isVnode: true,

@@ -114,7 +114,8 @@ export function setupComponent(instance) {
   }
 
   // data可以拿到props
-  instance.data = reactive(data.call(instance.proxy))
+  // instance.data = reactive(data.call(instance.proxy))
+  instance.data = data.call(instance.proxy)
   if (!instance.render) instance.render = render
 }
 
