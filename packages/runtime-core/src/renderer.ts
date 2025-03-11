@@ -1,5 +1,5 @@
 import { hasOwn, ShapeFlags } from '@toy-vue/shared'
-import { Fragment, isSameVnode, Text } from './createVNode'
+import { createVNode, Fragment, isSameVnode, Text } from './createVNode'
 import getSequence from './seq'
 import { isRef, reactive, ReactiveEffect } from '@toy-vue/reactivity'
 import queueJob from './scheduler'
@@ -18,15 +18,26 @@ export function createRenderer(renderOptions) {
     nextSibling: hostNextSibling,
     patchProp: hostPatchProp
   } = renderOptions
-  // 元素 首次渲染 挂载子节点
-  const mountChildren = (children, container) => {
+
+  const normalize = (children) => {
     for (let i = 0; i < children.length; ++i) {
-      // children[i] 可能是数组或字符串
-      patch(null, children[i], container)
+      if (typeof children[i] === 'string' || typeof children[i] === 'number') {
+        children[i] = createVNode(Text, null, String(children[i]))
+      }
+    }
+    return children
+  }
+
+  // 元素 首次渲染 挂载子节点
+  const mountChildren = (children, container, parentComponent) => {
+    // children[i] 可能是数组或字符串
+    normalize(children)
+    for (let i = 0; i < children.length; ++i) {
+      patch(null, children[i], container, parentComponent)
     }
   }
   // 元素 首次渲染 挂载元素
-  const mountElement = (vnode, container, anchor) => {
+  const mountElement = (vnode, container, anchor, parentComponent) => {
     const { type, children, props, shapeFlag } = vnode
     // 第一次渲染的时候让虚拟节点和真实的dom 创建关联 vnode.el = 真实dom
     // 第二次渲染新的vnode，可以和上一次次的vnode作比对，之后更新对应的el元素，可以后续再复用这个dom元素
@@ -39,15 +50,15 @@ export function createRenderer(renderOptions) {
     if (shapeFlag & ShapeFlags.TEXT_CHILDREN) {
       hostSetElementText(el, children)
     } else if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
-      mountChildren(children, el)
+      mountChildren(children, el, parentComponent)
     }
     hostInsert(el, container, anchor)
   }
 
   // 判断元素是否是首次渲染，决定走上边或下边的逻辑
-  const processElement = (n1, n2, container, anchor) => {
-    if (n1 === null) mountElement(n2, container, anchor)
-    else patchElement(n1, n2, container)
+  const processElement = (n1, n2, container, anchor, parentComponent) => {
+    if (n1 === null) mountElement(n2, container, anchor, parentComponent)
+    else patchElement(n1, n2, container, parentComponent)
   }
 
   // 元素 非首次渲染 更新属性
@@ -161,9 +172,9 @@ export function createRenderer(renderOptions) {
     }
   }
   // 元素 非首次渲染 更新子节点
-  const patchChildren = (n1, n2, el) => {
+  const patchChildren = (n1, n2, el, parentComponent) => {
     const c1 = n1.children
-    const c2 = n2.children
+    const c2 = normalize(n2.children)
 
     const prevShapeFlag = n1.shapeFlag
     const shapeFlag = n2.shapeFlag
@@ -199,19 +210,19 @@ export function createRenderer(renderOptions) {
         }
         // 6. 新的是数组，老的是文本
         if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
-          mountChildren(c2, el)
+          mountChildren(c2, el, parentComponent)
         }
       }
     }
   }
   // 元素 非首次渲染 更新
-  const patchElement = (n1, n2, container) => {
+  const patchElement = (n1, n2, container, parentComponent) => {
     // 比较元素差异、比较属性和元素的子节点
     const el = (n2.el = n1.el)
     const oldProps = n1.props || {}
     const newProps = n2.props || {}
     patchProps(oldProps, newProps, el)
-    patchChildren(n1, n2, el)
+    patchChildren(n1, n2, el, parentComponent)
   }
 
   // Text文本
@@ -228,9 +239,9 @@ export function createRenderer(renderOptions) {
   }
 
   // Fragment
-  const processFragment = (n1, n2, container) => {
-    if (n1 === null) mountChildren(n2.children, container)
-    else patchChildren(n1, n2, container)
+  const processFragment = (n1, n2, container, parentComponent) => {
+    if (n1 === null) mountChildren(n2.children, container, parentComponent)
+    else patchChildren(n1, n2, container, parentComponent)
   }
 
   // 更新组件属性和插槽
@@ -250,7 +261,7 @@ export function createRenderer(renderOptions) {
     }
   }
   // 挂载组件的effect
-  function setupRenderEffect(instance, container, anchor) {
+  function setupRenderEffect(instance, container, anchor, parentComponent) {
     const componentUpdateFn = () => {
       // 要在这里区分，是第一次还是之后的
       if (!instance.isMounted) {
@@ -258,7 +269,7 @@ export function createRenderer(renderOptions) {
         if (bm) invokeArray(bm)
 
         const subTree = renderComponent(instance)
-        patch(null, subTree, container, anchor)
+        patch(null, subTree, container, anchor, instance)
         instance.isMounted = true
         instance.subTree = subTree
 
@@ -273,7 +284,7 @@ export function createRenderer(renderOptions) {
         if (bu) invokeArray(bu)
 
         const subTree = renderComponent(instance)
-        patch(instance.subTree, subTree, container, anchor)
+        patch(instance.subTree, subTree, container, anchor, instance)
         instance.subTree = subTree
 
         if (u) invokeArray(u)
@@ -284,13 +295,13 @@ export function createRenderer(renderOptions) {
     update()
   }
   // 挂载组件
-  const mountComponent = (vnode, container, anchor) => {
+  const mountComponent = (vnode, container, anchor, parentComponent) => {
     // 1. 创建组件实例
-    const instance = (vnode.component = createComponentInstance(vnode))
+    const instance = (vnode.component = createComponentInstance(vnode, parentComponent))
     // 2. 给实例的属性赋值
     setupComponent(instance)
     // 3. 创建一个effect
-    setupRenderEffect(instance, container, anchor)
+    setupRenderEffect(instance, container, anchor, parentComponent)
   }
 
   // 更新组件工具函数 比较前后props是否有变化
@@ -339,13 +350,13 @@ export function createRenderer(renderOptions) {
   }
 
   // 组件处理
-  const processComponent = (n1, n2, container, anchor) => {
-    if (n1 == null) mountComponent(n2, container, anchor)
+  const processComponent = (n1, n2, container, anchor, parentComponent) => {
+    if (n1 == null) mountComponent(n2, container, anchor, parentComponent)
     else updateComponent(n1, n2)
   }
 
   // patch打补丁，挂载或更新
-  const patch = (n1, n2, container, anchor = null) => {
+  const patch = (n1, n2, container, anchor = null, parentComponent = null) => {
     if (n1 === n2) return
 
     if (n1 && !isSameVnode(n1, n2)) {
@@ -360,17 +371,17 @@ export function createRenderer(renderOptions) {
         break
       // 对Fragment处理
       case Fragment:
-        processFragment(n1, n2, container)
+        processFragment(n1, n2, container, parentComponent)
         break
       // 对元素处理，挂载或更新
       default:
         if (shapeFlag & ShapeFlags.ELEMENT) {
-          processElement(n1, n2, container, anchor)
+          processElement(n1, n2, container, anchor, parentComponent)
         } else if (shapeFlag & ShapeFlags.TELEPORT) {
           type.process(n1, n2, container, anchor)
         } else if (shapeFlag & ShapeFlags.COMPONENT) {
           // 对组件的处理，vue3中函数式组件已经废弃，没有性能节约
-          processComponent(n1, n2, container, anchor)
+          processComponent(n1, n2, container, anchor, parentComponent)
         }
     }
     if (ref !== null) {

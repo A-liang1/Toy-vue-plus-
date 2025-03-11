@@ -1,8 +1,7 @@
 import { proxyRefs, reactive } from '@toy-vue/reactivity'
 import { hasOwn, isFunction, ShapeFlags } from '@toy-vue/shared'
-import { render } from '../../runtime-dom/src/index'
 
-export function createComponentInstance(vnode) {
+export function createComponentInstance(vnode, parent) {
   const instance = {
     data: null, // 状态
     vnode, // 组件的虚拟节点
@@ -16,7 +15,9 @@ export function createComponentInstance(vnode) {
     component: null,
     proxy: null, // 代理props，attrs，data
     setupState: {},
-    exposed: null // 暴露出去的属性,不能是{},在ref时会认为exposed始终有值
+    exposed: null, // 暴露出去的属性,不能是{},在ref时会认为exposed始终有值
+    parent,
+    provides: parent ? parent.provides : Object.create(null)
   }
   return instance
 }
