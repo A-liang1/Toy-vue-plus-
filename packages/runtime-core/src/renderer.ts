@@ -38,7 +38,7 @@ export function createRenderer(renderOptions) {
   }
   // 元素 首次渲染 挂载元素
   const mountElement = (vnode, container, anchor, parentComponent) => {
-    const { type, children, props, shapeFlag } = vnode
+    const { type, children, props, shapeFlag, transition } = vnode
     // 第一次渲染的时候让虚拟节点和真实的dom 创建关联 vnode.el = 真实dom
     // 第二次渲染新的vnode，可以和上一次次的vnode作比对，之后更新对应的el元素，可以后续再复用这个dom元素
     let el = (vnode.el = hostCreateElement(type))
@@ -52,7 +52,12 @@ export function createRenderer(renderOptions) {
     } else if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
       mountChildren(children, el, parentComponent)
     }
+
+    if (transition) transition.beforeEnter(el)
+
     hostInsert(el, container, anchor)
+
+    if (transition) transition.enter(el)
   }
 
   // 判断元素是否是首次渲染，决定走上边或下边的逻辑
@@ -249,15 +254,17 @@ export function createRenderer(renderOptions) {
     instance.next = null
     instance.vnode = next
     updateProps(instance, instance.props, next.props)
+    // 组件爱你更新时，需要更新插槽
+    Object.assign(instance.slots, next.children)
   }
   // 初始化subTree，区分函数组件、状态组件
   function renderComponent(instance) {
-    const { render, vnode, proxy, props, attrs } = instance
+    const { render, vnode, proxy, props, attrs, slots } = instance
 
     if (vnode.shapeFlag & ShapeFlags.STATEFUL_COMPONENT) {
       return render.call(proxy, proxy)
     } else {
-      return vnode.type(attrs)
+      return vnode.type(attrs, { slots })
     }
   }
   // 挂载组件的effect
@@ -363,6 +370,7 @@ export function createRenderer(renderOptions) {
       unmount(n1)
       n1 = null
     }
+
     const { type, shapeFlag, ref } = n2
     switch (type) {
       // 对Text文本处理
@@ -416,11 +424,16 @@ export function createRenderer(renderOptions) {
 
   // 移除元素工具方法
   function unmount(vnode) {
-    const { shapeFlag } = vnode
+    const { shapeFlag, transition, el } = vnode
+    const performRemove = () => hostRemove(vnode.el)
+
     if (vnode.type === Fragment) unmountChildren(vnode.children)
     else if (shapeFlag & ShapeFlags.COMPONENT) unmount(vnode.component.subTree)
     else if (shapeFlag & ShapeFlags.TELEPORT) vnode.type.remove(vnode, unmountChildren)
-    else hostRemove(vnode.el)
+    else {
+      if (transition) transition.leave(el, performRemove)
+      else performRemove()
+    }
   }
 
   return {

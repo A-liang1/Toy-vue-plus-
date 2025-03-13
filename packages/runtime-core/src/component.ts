@@ -109,6 +109,7 @@ export function setupComponent(instance) {
     if (isFunction(setupResult)) {
       instance.render = setupResult
     } else {
+      debugger
       instance.setupState = proxyRefs(setupResult) // 将返回的值做脱ref
     }
   }
