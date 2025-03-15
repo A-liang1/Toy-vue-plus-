@@ -4,7 +4,7 @@ import getSequence from './seq'
 import { isRef, reactive, ReactiveEffect } from '@toy-vue/reactivity'
 import queueJob from './scheduler'
 import { createComponentInstance, setupComponent } from './component'
-import { invokeArray } from '@toy-vue/runtime-dom'
+import { invokeArray, isKeepAlive } from '@toy-vue/runtime-dom'
 
 export function createRenderer(renderOptions) {
   const {
@@ -79,14 +79,14 @@ export function createRenderer(renderOptions) {
     }
   }
   // 删除子节点工具函数
-  function unmountChildren(children) {
+  function unmountChildren(children, parentComponent) {
     for (let i = 0; i < children.length; ++i) {
       let child = children[i]
-      unmount(child)
+      unmount(child, parentComponent)
     }
   }
   // 元素 非首次渲染 全量diff算法 (1)   快速diff(靶向更新)->基于模版编译的 (2)
-  const patchKeyedChildren = (c1, c2, el) => {
+  const patchKeyedChildren = (c1, c2, el, parentCompoennt) => {
     // 比较两个儿子的差异 更新el真实dom
     //双端对比
     let i = 0
@@ -125,7 +125,7 @@ export function createRenderer(renderOptions) {
     // 老的比新的多
     else if (i > e2) {
       while (i <= e1) {
-        unmount(c1[i])
+        unmount(c1[i], parentCompoennt)
         ++i
       }
     }
@@ -149,7 +149,7 @@ export function createRenderer(renderOptions) {
       for (let i = s1; i <= e1; i++) {
         const vnode = c1[i]
         const newIndex = keyToNewIndexMap.get(vnode.key)
-        if (newIndex === undefined) unmount(vnode)
+        if (newIndex === undefined) unmount(vnode, parentCompoennt)
         else {
           // 记录新节点在老节点中的位置，+1 是因为0为空(i可能是0)
           newIndexToOldIndexMap[newIndex - s2] = i + 1
@@ -186,7 +186,7 @@ export function createRenderer(renderOptions) {
 
     if (c2 == null) {
       if (c1 != null) {
-        unmountChildren(c1)
+        unmountChildren(c1, parentComponent)
       }
       return
     }
@@ -194,7 +194,7 @@ export function createRenderer(renderOptions) {
     if (shapeFlag & ShapeFlags.TEXT_CHILDREN) {
       // 1. 新的是文本，老的是数组
       if (prevShapeFlag & ShapeFlags.ARRAY_CHILDREN) {
-        unmountChildren(c1)
+        unmountChildren(c1, parentComponent)
       }
       // 2. 新的是文本，老的是文本，内容不相同替换
       if (c1 !== c2) hostSetElementText(el, c2)
@@ -203,10 +203,10 @@ export function createRenderer(renderOptions) {
       if (prevShapeFlag & ShapeFlags.ARRAY_CHILDREN) {
         if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
           // diff
-          patchKeyedChildren(c1, c2, el)
+          patchKeyedChildren(c1, c2, el, parentComponent)
         } else {
           // 4. 老的是数组，新的是空，直接移除老的子节点
-          unmountChildren(c1)
+          unmountChildren(c1, parentComponent)
         }
       } else {
         // 5. 老的是文本，新的是空
@@ -305,6 +305,16 @@ export function createRenderer(renderOptions) {
   const mountComponent = (vnode, container, anchor, parentComponent) => {
     // 1. 创建组件实例
     const instance = (vnode.component = createComponentInstance(vnode, parentComponent))
+
+    if (isKeepAlive(vnode))
+      instance.ctx.renderer = {
+        createElement: hostCreateElement, // 内部需要创建一个div来缓存dom
+        move(vnode, container, anchor) {
+          hostInsert(vnode.component.subTree.el, container, anchor) // 需要把之前渲染的dom放到容器中
+        },
+        unmount // 如果组件切换需要现在容器中的元素移除
+      }
+
     // 2. 给实例的属性赋值
     setupComponent(instance)
     // 3. 创建一个effect
@@ -324,7 +334,7 @@ export function createRenderer(renderOptions) {
   }
   //更新组件props
   const updateProps = (instance, prvVprops, nextProps) => {
-    if (hasPropsChange(prvVprops, nextProps)) {
+    if (hasPropsChange(prvVprops, nextProps || {})) {
       // 用新的覆盖老的
       for (let key in nextProps) {
         instance.props[key] = nextProps[key]
@@ -343,7 +353,7 @@ export function createRenderer(renderOptions) {
     if (prevChildren || nextChildren) return true // 有插槽直接走重新渲染即可
     if (prevProps === nextProps) return false
     // 如果属性不一致实则更新
-    return hasPropsChange(prevProps, nextProps)
+    return hasPropsChange(prevProps, nextProps || {})
     // updateProps(instance, prevProps, nextProps)
   }
   // 更新组件
@@ -358,8 +368,14 @@ export function createRenderer(renderOptions) {
 
   // 组件处理
   const processComponent = (n1, n2, container, anchor, parentComponent) => {
-    if (n1 == null) mountComponent(n2, container, anchor, parentComponent)
-    else updateComponent(n1, n2)
+    if (n1 == null) {
+      //如果n1，n2类型不一样，那么就会unmount n1
+      if (n2.shapeFlag & ShapeFlags.COMPONENT_KEPT_ALIVE) {
+        parentComponent.ctx.activate(n2, container, anchor)
+      } else {
+        mountComponent(n2, container, anchor, parentComponent)
+      }
+    } else updateComponent(n1, n2)
   }
 
   // patch打补丁，挂载或更新
@@ -367,7 +383,7 @@ export function createRenderer(renderOptions) {
     if (n1 === n2) return
 
     if (n1 && !isSameVnode(n1, n2)) {
-      unmount(n1)
+      unmount(n1, parentComponent)
       n1 = null
     }
 
@@ -413,9 +429,9 @@ export function createRenderer(renderOptions) {
     }
   }
   // render渲染更新
-  const render = (vnode, container) => {
+  const render = (vnode, container, parentComponent) => {
     if (vnode == null) {
-      if (container._vnode) unmount(container._vnode)
+      if (container._vnode) unmount(container._vnode, parentComponent)
     } else {
       patch(container._vnode || null, vnode, container)
       container._vnode = vnode
@@ -423,12 +439,15 @@ export function createRenderer(renderOptions) {
   }
 
   // 移除元素工具方法
-  function unmount(vnode) {
+  function unmount(vnode, parentComponent) {
     const { shapeFlag, transition, el } = vnode
     const performRemove = () => hostRemove(vnode.el)
 
-    if (vnode.type === Fragment) unmountChildren(vnode.children)
-    else if (shapeFlag & ShapeFlags.COMPONENT) unmount(vnode.component.subTree)
+    if (shapeFlag & ShapeFlags.COMPONENT_SHOULD_KEEP_ALIVE) {
+      // 没有卸载，只是把vnode缓存到storageContent里
+      parentComponent.ctx.deactivate(vnode)
+    } else if (vnode.type === Fragment) unmountChildren(vnode.children, parentComponent)
+    else if (shapeFlag & ShapeFlags.COMPONENT) unmount(vnode.component.subTree, parentComponent)
     else if (shapeFlag & ShapeFlags.TELEPORT) vnode.type.remove(vnode, unmountChildren)
     else {
       if (transition) transition.leave(el, performRemove)

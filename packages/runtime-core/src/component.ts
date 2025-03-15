@@ -17,6 +17,7 @@ export function createComponentInstance(vnode, parent) {
     setupState: {},
     exposed: null, // 暴露出去的属性,不能是{},在ref时会认为exposed始终有值
     parent,
+    ctx: {} as any, // 如果是KeppAlive组件，就将dom api放到这个属性上
     provides: parent ? parent.provides : Object.create(null)
   }
   return instance
@@ -109,7 +110,6 @@ export function setupComponent(instance) {
     if (isFunction(setupResult)) {
       instance.render = setupResult
     } else {
-      debugger
       instance.setupState = proxyRefs(setupResult) // 将返回的值做脱ref
     }
   }
